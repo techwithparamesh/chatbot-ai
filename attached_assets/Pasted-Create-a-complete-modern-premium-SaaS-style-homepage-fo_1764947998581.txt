@@ -1,0 +1,154 @@
+Create a complete, modern, premium SaaS-style homepage for my platform.
+The platform allows users to scan their website, extract all content, and automatically create a fully functional AI Chatbot without writing any code.
+
+Build the homepage using the structure below and follow the exact instructions.
+
+1. Hero Section
+
+Title: “Build Your Own AI Chatbot in 2 Minutes — No Coding Needed”
+
+Subtitle: “Scan your website → Train your bot → Embed it anywhere. Make your website answer customers instantly, 24/7.”
+
+Add two CTA buttons:
+
+“Get Started Free”
+
+“Watch Demo”
+
+Add a small trust badge: “No credit card required.”
+
+2. How It Works (3-steps block)
+
+Create a clean 3-column layout with icons.
+
+Step 1 — Enter Your Website URL
+“We automatically scan all your pages, services, blogs, and FAQs.”
+
+Step 2 — Train Your Chatbot
+“Your website content becomes knowledge. Add PDFs or documents for extra training.”
+
+Step 3 — Embed & Go Live
+“Copy a single script and instantly activate your chatbot on any website.”
+
+3. Features Section
+
+Create a professional feature grid with icons. Include these features:
+
+Automatic Website Scanner
+Crawls your entire website and extracts clean text.
+
+Custom AI Chatbot Creation
+Choose bot name, personality, and welcome message.
+
+Upload Extra Knowledge Files
+Supports PDFs, Docs, Notes, and more.
+
+Accurate Responses with RAG
+Vector database + AI ensures precise answers.
+
+Fully Customizable Widget
+Match your brand colors and website theme.
+
+Test URL Before Deploying
+Review your bot in a sandbox before going live.
+
+4. Why Choose Us Section
+
+Use a 4-card layout.
+
+No coding required
+
+Works on any website (HTML, WordPress, Shopify, etc.)
+
+AI-powered accuracy
+
+Saves support time & boosts conversions
+
+5. Use Cases Section
+
+Create a wide block showing 4 use cases:
+
+Business Websites: Instant customer support
+
+E-commerce Stores: Product, shipping & return questions
+
+Educational Sites: Course info, admissions, scheduling
+
+Agencies: Service explanation, pricing, onboarding
+
+6. Pricing Section
+
+Build a clean SaaS pricing table with 3 plans.
+
+Starter (Free)
+
+1 chatbot
+
+1 website scan
+
+50 chats/month
+
+Pro
+
+Unlimited chatbots
+
+Unlimited scans
+
+Branding removal
+
+Unlimited chats
+
+Enterprise
+
+Custom AI model
+
+API access
+
+Dedicated support
+
+7. Testimonials Section
+
+Add placeholder testimonials for now. Use 3 cards.
+
+8. Footer
+
+Include the following links:
+
+About
+
+Pricing
+
+Documentation
+
+Contact
+
+Privacy Policy
+
+Terms of Service
+
+Design Style Instructions
+
+Modern SaaS design
+
+Soft gradients + clean white space
+
+Smooth animations
+
+Rounded cards
+
+Professional typography
+
+Use AI/chatbot-related illustrations
+
+Mobile responsive layout
+
+Tone & Voice
+
+Friendly, professional, and conversion-focused.
+Write everything in clear English.
+
+Deliverables
+
+Return the full homepage content with headings, paragraphs, CTA texts, and section descriptions exactly in the structure above.
+
+PROMPT END
