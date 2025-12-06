@@ -7,6 +7,7 @@ import { WhyChooseUsSection } from "@/components/why-choose-us-section";
 import { UseCasesSection } from "@/components/use-cases-section";
 import { PricingSection } from "@/components/pricing-section";
 import { TestimonialsSection } from "@/components/testimonials-section";
+import { FAQSection } from "@/components/faq-section";
 import { CTASection } from "@/components/cta-section";
 import { Footer } from "@/components/footer";
 import { SignupModal } from "@/components/signup-modal";
@@ -42,6 +43,7 @@ export default function Home() {
           <UseCasesSection />
           <PricingSection />
           <TestimonialsSection />
+          <FAQSection />
           <CTASection />
         </main>
         <Footer />
