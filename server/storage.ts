@@ -123,7 +123,7 @@ export class MemStorage implements IStorage {
   async createChatbot(insertChatbot: InsertChatbot): Promise<Chatbot> {
     const id = randomUUID();
     const testUrl = `/chat/test/${id}`;
-    const embedCode = `<script src="${process.env.BASE_URL || 'http://localhost:5000'}/embed/${id}.js"></script>`;
+    const embedCode = `<script src="${process.env.BASE_URL || 'http://localhost:5008'}/embed/${id}.js"></script>`;
     
     const chatbot: Chatbot = {
       ...insertChatbot,
