@@ -74,6 +74,7 @@ export const insertChatbotSchema = createInsertSchema(chatbots).pick({
   name: true,
   greetingType: true,
   greetingMessages: true,
+  knowledgeBase: true,
 });
 
 export type InsertChatbot = z.infer<typeof insertChatbotSchema>;

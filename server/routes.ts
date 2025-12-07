@@ -151,11 +151,14 @@ export async function registerRoutes(
         });
       }
       
+      // Update status to scanning
       await storage.updateWebsite(website.id, { status: "scanning" });
+      
+      // Perform the actual scraping
       try {
-        const response = await axios.get(url);
+        const response = await axios.get(url, { timeout: 10000 });
         const $ = cheerio.load(response.data);
-        const title = $('title').text();
+        const title = $('title').text() || 'Untitled Page';
         // Get all visible text from the body
         let content = $('body').text();
         content = content.replace(/\s+/g, ' ').trim();
@@ -166,9 +169,13 @@ export async function registerRoutes(
           content: pageData,
         });
       } catch (err) {
+        console.error('Scraping error:', err);
         await storage.updateWebsite(website.id, { status: "failed" });
       }
-      return res.status(201).json(await storage.getWebsite(website.id));
+      
+      // Return the updated website
+      const updatedWebsite = await storage.getWebsite(website.id);
+      return res.status(201).json(updatedWebsite);
     } catch (error) {
       console.error("Error creating website:", error);
       return res.status(500).json({ error: "Failed to create website" });
@@ -211,26 +218,30 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Bot name is required" });
       }
       
+      // Get knowledge base from website if provided
+      let knowledgeBase: any[] = [];
+      if (websiteId) {
+        const website = await storage.getWebsite(websiteId);
+        console.log('Website found:', !!website);
+        console.log('Website content:', website?.content?.length || 0);
+        if (website && website.content && website.content.length > 0) {
+          knowledgeBase = website.content;
+          console.log('Knowledge base loaded:', knowledgeBase.length, 'pages');
+        }
+      }
+      
       const chatbot = await storage.createChatbot({
         userId: (req as any).userId,
         websiteId: websiteId || null,
         name,
         greetingType: greetingType || "custom",
         greetingMessages: greetingMessages || ["Hello! How can I help you today?"],
+        knowledgeBase: knowledgeBase,
       });
       
-      // If websiteId is provided, automatically load knowledge base
-      if (websiteId) {
-        const website = await storage.getWebsite(websiteId);
-        if (website && website.content && website.content.length > 0) {
-          await storage.updateChatbot(chatbot.id, {
-            knowledgeBase: website.content,
-          });
-        }
-      }
+      console.log('Chatbot created with KB length:', chatbot.knowledgeBase?.length || 0);
       
-      const updatedChatbot = await storage.getChatbot(chatbot.id);
-      return res.status(201).json(updatedChatbot);
+      return res.status(201).json(chatbot);
     } catch (error) {
       console.error("Error creating chatbot:", error);
       return res.status(500).json({ error: "Failed to create chatbot" });
@@ -349,37 +360,73 @@ export async function registerRoutes(
       if (!chatbot) {
         return res.status(404).json({ error: "Chatbot not found" });
       }
+      
+      // Debug logging
+      console.log('Chatbot ID:', chatbot.id);
+      console.log('Knowledge Base exists:', !!chatbot.knowledgeBase);
+      console.log('Knowledge Base length:', chatbot.knowledgeBase?.length || 0);
+      if (chatbot.knowledgeBase && chatbot.knowledgeBase.length > 0) {
+        console.log('First KB entry:', chatbot.knowledgeBase[0]);
+      }
+      
       await storage.createChatMessage({
         chatbotId: chatbot.id,
         sessionId,
         role: "user",
         content: message,
       });
-      let response = "I'm sorry, I couldn't find an exact answer to your question.";
+      let response = "I'm sorry, I don't have information about that in my knowledge base. Please try asking something else or rephrase your question.";
+      
       // Check for greetings
-      const greetings = ["hi", "hello", "hey", "hola", "greetings"];
+      const greetings = ["hi", "hello", "hey", "hola", "greetings", "good morning", "good afternoon", "good evening"];
       if (greetings.some(g => message.toLowerCase().includes(g))) {
         response = chatbot.greetingMessages?.[0] || "Hello! How can I help you today?";
       } else if (chatbot.knowledgeBase && chatbot.knowledgeBase.length > 0) {
         // Find the most relevant content from the knowledge base
         const lowerMessage = message.toLowerCase();
+        const queryWords = lowerMessage.split(/\s+/).filter(w => w.length > 2); // Filter out short words
+        
         let bestMatch = null;
         let bestScore = 0;
+        let bestContext = "";
+        
         for (const page of chatbot.knowledgeBase) {
-          // Score by number of matching words
           const pageText = `${page.title} ${page.content}`.toLowerCase();
-          const words = lowerMessage.split(/\s+/);
           let score = 0;
-          for (const word of words) {
-            if (pageText.includes(word)) score++;
+          
+          // Score by matching words
+          for (const word of queryWords) {
+            const regex = new RegExp(`\\b${word}\\b`, 'gi');
+            const matches = pageText.match(regex);
+            if (matches) {
+              score += matches.length;
+            }
           }
+          
           if (score > bestScore) {
             bestScore = score;
             bestMatch = page;
+            
+            // Extract relevant context (find sentences containing query words)
+            const sentences = page.content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            let relevantSentences = [];
+            
+            for (const sentence of sentences) {
+              const lowerSentence = sentence.toLowerCase();
+              if (queryWords.some(word => lowerSentence.includes(word))) {
+                relevantSentences.push(sentence.trim());
+                if (relevantSentences.length >= 3) break; // Limit to 3 sentences
+              }
+            }
+            
+            bestContext = relevantSentences.length > 0 
+              ? relevantSentences.join('. ') + '.'
+              : page.content.substring(0, 500) + '...'; // Fallback to first 500 chars
           }
         }
+        
         if (bestMatch && bestScore > 0) {
-          response = `From ${bestMatch.title}: ${bestMatch.content}`;
+          response = `Based on the information from ${bestMatch.title}:\n\n${bestContext}`;
         }
       }
       const botMessage = await storage.createChatMessage({

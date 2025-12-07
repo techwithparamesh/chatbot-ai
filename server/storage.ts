@@ -138,7 +138,8 @@ export class MemStorage implements IStorage {
       isActive: false,
       testUrl,
       embedCode,
-      knowledgeBase: [],
+      knowledgeBase: insertChatbot.knowledgeBase || [],
+      greetingMessages: insertChatbot.greetingMessages || [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
