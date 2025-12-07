@@ -5,6 +5,7 @@ import { insertLeadSchema, signupSchema, loginSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import puppeteer from "puppeteer";
 
 // Simple session store (in production, use Redis or database)
 const sessions = new Map<string, { userId: string; expiresAt: Date }>();
@@ -154,23 +155,75 @@ export async function registerRoutes(
       // Update status to scanning
       await storage.updateWebsite(website.id, { status: "scanning" });
       
-      // Perform the actual scraping
+      // Perform the actual scraping using Puppeteer (handles JavaScript-rendered pages)
+      let browser = null;
       try {
-        const response = await axios.get(url, { timeout: 10000 });
-        const $ = cheerio.load(response.data);
-        const title = $('title').text() || 'Untitled Page';
-        // Get all visible text from the body
-        let content = $('body').text();
-        content = content.replace(/\s+/g, ' ').trim();
+        console.log('Starting website scan for:', url);
+        
+        // Launch Puppeteer browser
+        browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+        
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        // Navigate to the page and wait for content to load
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        
+        // Wait a bit more for dynamic content
+        await page.waitForTimeout(2000);
+        
+        // Get page title
+        const title = await page.title() || 'Untitled Page';
+        
+        // Get all visible text content from the page
+        const content = await page.evaluate(() => {
+          // Remove script and style elements
+          const scripts = document.querySelectorAll('script, style, noscript');
+          scripts.forEach(el => el.remove());
+          
+          // Get text content
+          const body = document.body;
+          if (!body) return '';
+          
+          // Get all text nodes
+          const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
+          let text = '';
+          let node;
+          while (node = walker.nextNode()) {
+            const trimmed = node.textContent?.trim();
+            if (trimmed) {
+              text += trimmed + ' ';
+            }
+          }
+          return text.trim();
+        });
+        
+        console.log('Scraped content length:', content.length);
+        console.log('Page title:', title);
+        
+        if (content.length < 50) {
+          console.log('Warning: Very little content scraped. Content:', content);
+        }
+        
         const pageData = [{ url, title, content }];
         await storage.updateWebsite(website.id, {
           status: "completed",
           pagesScanned: [url],
           content: pageData,
         });
+        
+        console.log('Website scan completed successfully');
+        
       } catch (err) {
         console.error('Scraping error:', err);
         await storage.updateWebsite(website.id, { status: "failed" });
+      } finally {
+        if (browser) {
+          await browser.close();
+        }
       }
       
       // Return the updated website
