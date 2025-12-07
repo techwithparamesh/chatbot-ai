@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertLeadSchema, signupSchema, loginSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
+import axios from "axios";
+import * as cheerio from "cheerio";
 
 // Simple session store (in production, use Redis or database)
 const sessions = new Map<string, { userId: string; expiresAt: Date }>();
@@ -131,8 +133,6 @@ export async function registerRoutes(
   // ============ WEBSITE ROUTES ============
   
   // Create website for scanning
-  const axios = require('axios');
-  const cheerio = require('cheerio');
   app.post("/api/websites", authMiddleware, async (req, res) => {
     try {
       const { url } = req.body;
@@ -362,12 +362,17 @@ export async function registerRoutes(
       }
       
       // Debug logging
+      console.log('=== CHATBOT MESSAGE DEBUG ===');
       console.log('Chatbot ID:', chatbot.id);
+      console.log('Chatbot Name:', chatbot.name);
+      console.log('User Message:', message);
       console.log('Knowledge Base exists:', !!chatbot.knowledgeBase);
       console.log('Knowledge Base length:', chatbot.knowledgeBase?.length || 0);
       if (chatbot.knowledgeBase && chatbot.knowledgeBase.length > 0) {
-        console.log('First KB entry:', chatbot.knowledgeBase[0]);
+        console.log('First KB entry title:', chatbot.knowledgeBase[0].title);
+        console.log('First KB entry content length:', chatbot.knowledgeBase[0].content?.length || 0);
       }
+      console.log('============================');
       
       await storage.createChatMessage({
         chatbotId: chatbot.id,
