@@ -131,41 +131,36 @@ export async function registerRoutes(
   // ============ WEBSITE ROUTES ============
   
   // Create website for scanning
+  const axios = require('axios');
+  const cheerio = require('cheerio');
   app.post("/api/websites", authMiddleware, async (req, res) => {
     try {
       const { url } = req.body;
       if (!url) {
         return res.status(400).json({ error: "URL is required" });
       }
-      
       const website = await storage.createWebsite({
         userId: (req as any).userId,
         url,
       });
-      
-      // Simulate scanning (in production, this would be a background job)
-      setTimeout(async () => {
-        await storage.updateWebsite(website.id, { status: "scanning" });
-        
-        // Simulate scanning delay
-        setTimeout(async () => {
-          // Mock scraped content
-          const mockContent = [
-            { url: url, title: "Home Page", content: "Welcome to our website. We provide excellent services..." },
-            { url: `${url}/about`, title: "About Us", content: "We are a company dedicated to..." },
-            { url: `${url}/services`, title: "Services", content: "Our services include..." },
-            { url: `${url}/contact`, title: "Contact", content: "Contact us at..." },
-          ];
-          
-          await storage.updateWebsite(website.id, {
-            status: "completed",
-            pagesScanned: mockContent.map(p => p.url),
-            content: mockContent,
-          });
-        }, 3000);
-      }, 1000);
-      
-      return res.status(201).json(website);
+      await storage.updateWebsite(website.id, { status: "scanning" });
+      try {
+        const response = await axios.get(url);
+        const $ = cheerio.load(response.data);
+        const title = $('title').text();
+        // Get all visible text from the body
+        let content = $('body').text();
+        content = content.replace(/\s+/g, ' ').trim();
+        const pageData = [{ url, title, content }];
+        await storage.updateWebsite(website.id, {
+          status: "completed",
+          pagesScanned: [url],
+          content: pageData,
+        });
+      } catch (err) {
+        await storage.updateWebsite(website.id, { status: "failed" });
+      }
+      return res.status(201).json(await storage.getWebsite(website.id));
     } catch (error) {
       console.error("Error creating website:", error);
       return res.status(500).json({ error: "Failed to create website" });
@@ -332,46 +327,48 @@ export async function registerRoutes(
     try {
       const { message, sessionId } = req.body;
       const chatbot = await storage.getChatbot(req.params.id);
-      
       if (!chatbot) {
         return res.status(404).json({ error: "Chatbot not found" });
       }
-      
-      // Save user message
       await storage.createChatMessage({
         chatbotId: chatbot.id,
         sessionId,
         role: "user",
         content: message,
       });
-      
-      // Generate response based on knowledge base
-      let response = "I'm sorry, I don't have information about that. Please try asking something else.";
-      
+      let response = "I'm sorry, I couldn't find an exact answer to your question.";
       // Check for greetings
       const greetings = ["hi", "hello", "hey", "hola", "greetings"];
       if (greetings.some(g => message.toLowerCase().includes(g))) {
         response = chatbot.greetingMessages?.[0] || "Hello! How can I help you today?";
       } else if (chatbot.knowledgeBase && chatbot.knowledgeBase.length > 0) {
-        // Simple keyword matching (in production, use AI/embeddings)
+        // Find the most relevant content from the knowledge base
         const lowerMessage = message.toLowerCase();
+        let bestMatch = null;
+        let bestScore = 0;
         for (const page of chatbot.knowledgeBase) {
-          if (page.content.toLowerCase().includes(lowerMessage) || 
-              page.title.toLowerCase().includes(lowerMessage)) {
-            response = `Based on our ${page.title}: ${page.content}`;
-            break;
+          // Score by number of matching words
+          const pageText = `${page.title} ${page.content}`.toLowerCase();
+          const words = lowerMessage.split(/\s+/);
+          let score = 0;
+          for (const word of words) {
+            if (pageText.includes(word)) score++;
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = page;
           }
         }
+        if (bestMatch && bestScore > 0) {
+          response = `From ${bestMatch.title}: ${bestMatch.content}`;
+        }
       }
-      
-      // Save bot response
       const botMessage = await storage.createChatMessage({
         chatbotId: chatbot.id,
         sessionId,
         role: "assistant",
         content: response,
       });
-      
       return res.json({ response, messageId: botMessage.id });
     } catch (error) {
       console.error("Error sending message:", error);
