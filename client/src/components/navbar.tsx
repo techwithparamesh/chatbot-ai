@@ -138,13 +138,13 @@ export function Navbar() {
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-border animate-fade-in-down">
+          <div className="md:hidden absolute top-16 left-0 right-0 bg-background/95 backdrop-blur-lg border-b border-border shadow-lg py-4 px-4 animate-fade-in-down">
             <div className="flex flex-col gap-2">
               {navLinks.map((link) => (
                 <Button
                   key={link.href}
                   variant="ghost"
-                  className="justify-start"
+                  className="justify-start w-full"
                   onClick={() => scrollToSection(link.href)}
                   data-testid={`link-mobile-nav-${link.label.toLowerCase().replace(" ", "-")}`}
                 >
