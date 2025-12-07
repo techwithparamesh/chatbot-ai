@@ -155,75 +155,108 @@ export async function registerRoutes(
       // Update status to scanning
       await storage.updateWebsite(website.id, { status: "scanning" });
       
-      // Perform the actual scraping using Puppeteer (handles JavaScript-rendered pages)
-      let browser = null;
+      // Perform the actual scraping
       try {
         console.log('Starting website scan for:', url);
         
-        // Launch Puppeteer browser
-        browser = await puppeteer.launch({
-          headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        let title = '';
+        let content = '';
+        let scraped = false;
         
-        const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-        
-        // Navigate to the page and wait for content to load
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-        
-        // Wait a bit more for dynamic content
-        await page.waitForTimeout(2000);
-        
-        // Get page title
-        const title = await page.title() || 'Untitled Page';
-        
-        // Get all visible text content from the page
-        const content = await page.evaluate(() => {
-          // Remove script and style elements
-          const scripts = document.querySelectorAll('script, style, noscript');
-          scripts.forEach(el => el.remove());
+        // Try Puppeteer first for JavaScript-rendered pages
+        try {
+          console.log('Attempting Puppeteer scraping...');
+          const browser = await puppeteer.launch({
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--no-first-run',
+              '--no-zygote',
+              '--single-process'
+            ],
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+          });
           
-          // Get text content
-          const body = document.body;
-          if (!body) return '';
+          const page = await browser.newPage();
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
           
-          // Get all text nodes
-          const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, null);
-          let text = '';
-          let node;
-          while (node = walker.nextNode()) {
-            const trimmed = node.textContent?.trim();
-            if (trimmed) {
-              text += trimmed + ' ';
-            }
-          }
-          return text.trim();
-        });
-        
-        console.log('Scraped content length:', content.length);
-        console.log('Page title:', title);
-        
-        if (content.length < 50) {
-          console.log('Warning: Very little content scraped. Content:', content);
-        }
-        
-        const pageData = [{ url, title, content }];
-        await storage.updateWebsite(website.id, {
-          status: "completed",
-          pagesScanned: [url],
-          content: pageData,
-        });
-        
-        console.log('Website scan completed successfully');
-        
-      } catch (err) {
-        console.error('Scraping error:', err);
-        await storage.updateWebsite(website.id, { status: "failed" });
-      } finally {
-        if (browser) {
+          await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          title = await page.title() || 'Untitled Page';
+          
+          content = await page.evaluate(() => {
+            const scripts = document.querySelectorAll('script, style, noscript, iframe');
+            scripts.forEach(el => el.remove());
+            const body = document.body;
+            if (!body) return '';
+            return body.innerText || body.textContent || '';
+          });
+          
+          content = content.replace(/\s+/g, ' ').trim();
           await browser.close();
+          scraped = true;
+          console.log('Puppeteer scraping successful, content length:', content.length);
+          
+        } catch (puppeteerError: any) {
+          console.log('Puppeteer failed:', puppeteerError.message);
+          console.log('Falling back to axios...');
+          
+          // Fallback to axios + cheerio
+          try {
+            const response = await axios.get(url, { 
+              timeout: 15000,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              }
+            });
+            const $ = cheerio.load(response.data);
+            
+            $('script, style, noscript, iframe').remove();
+            
+            title = $('title').text() || $('h1').first().text() || 'Untitled Page';
+            
+            // Get meta description and content
+            const metaDesc = $('meta[name="description"]').attr('content') || '';
+            const ogDesc = $('meta[property="og:description"]').attr('content') || '';
+            const h1Text = $('h1').map((i: number, el: any) => $(el).text()).get().join(' ');
+            const h2Text = $('h2').map((i: number, el: any) => $(el).text()).get().join(' ');
+            const pText = $('p').map((i: number, el: any) => $(el).text()).get().join(' ');
+            const bodyText = $('body').text();
+            
+            content = [metaDesc, ogDesc, h1Text, h2Text, pText, bodyText]
+              .filter(Boolean)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            scraped = true;
+            console.log('Axios scraping successful, content length:', content.length);
+          } catch (axiosError: any) {
+            console.error('Axios also failed:', axiosError.message);
+          }
         }
+        
+        if (scraped && content.length > 0) {
+          console.log('Page title:', title);
+          const pageData = [{ url, title, content }];
+          await storage.updateWebsite(website.id, {
+            status: "completed",
+            pagesScanned: [url],
+            content: pageData,
+          });
+          console.log('Website scan completed successfully');
+        } else {
+          console.log('Failed to scrape any content');
+          await storage.updateWebsite(website.id, { status: "failed" });
+        }
+        
+      } catch (err: any) {
+        console.error('Scraping error:', err.message);
+        await storage.updateWebsite(website.id, { status: "failed" });
       }
       
       // Return the updated website
