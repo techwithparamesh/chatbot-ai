@@ -21,6 +21,7 @@ export interface IStorage {
   createWebsite(website: InsertWebsite): Promise<Website>;
   getWebsite(id: string): Promise<Website | undefined>;
   getWebsitesByUser(userId: string): Promise<Website[]>;
+  getWebsiteByUserAndUrl(userId: string, url: string): Promise<Website | undefined>;
   updateWebsite(id: string, data: Partial<Website>): Promise<Website | undefined>;
   
   // Chatbot methods
@@ -107,6 +108,12 @@ export class MemStorage implements IStorage {
   async getWebsitesByUser(userId: string): Promise<Website[]> {
     return Array.from(this.websites.values()).filter(
       (website) => website.userId === userId
+    );
+  }
+
+  async getWebsiteByUserAndUrl(userId: string, url: string): Promise<Website | undefined> {
+    return Array.from(this.websites.values()).find(
+      (website) => website.userId === userId && website.url === url
     );
   }
 

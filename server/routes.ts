@@ -139,10 +139,18 @@ export async function registerRoutes(
       if (!url) {
         return res.status(400).json({ error: "URL is required" });
       }
-      const website = await storage.createWebsite({
-        userId: (req as any).userId,
-        url,
-      });
+      
+      // Check if website already exists for this user
+      let website = await storage.getWebsiteByUserAndUrl((req as any).userId, url);
+      
+      if (!website) {
+        // Create new website if not exists
+        website = await storage.createWebsite({
+          userId: (req as any).userId,
+          url,
+        });
+      }
+      
       await storage.updateWebsite(website.id, { status: "scanning" });
       try {
         const response = await axios.get(url);
@@ -211,7 +219,18 @@ export async function registerRoutes(
         greetingMessages: greetingMessages || ["Hello! How can I help you today?"],
       });
       
-      return res.status(201).json(chatbot);
+      // If websiteId is provided, automatically load knowledge base
+      if (websiteId) {
+        const website = await storage.getWebsite(websiteId);
+        if (website && website.content && website.content.length > 0) {
+          await storage.updateChatbot(chatbot.id, {
+            knowledgeBase: website.content,
+          });
+        }
+      }
+      
+      const updatedChatbot = await storage.getChatbot(chatbot.id);
+      return res.status(201).json(updatedChatbot);
     } catch (error) {
       console.error("Error creating chatbot:", error);
       return res.status(500).json({ error: "Failed to create chatbot" });
